@@ -83,40 +83,59 @@ var scopedPolyFill = (function (doc, undefined) {
     }
 
     i = scopedSheets.length;
-    while (i--)
+
+    while (i--) {
         scopeIt(scopedSheets[i]);
+    }
 
     // make a function so we can return it to enable the "scoping" of other <styles> which are inserted later on for instance
-    function scopeIt(styleNode, jQueryItem) {
+    function scopeIt (styleNode, jQueryItem) {
+        var parentSheet, allRules, index, rule,
+            glue = '',
+            appliedAttributeTag = 'data-scopedpolyfill-applied',
+            par = styleNode.parentNode;
 
         // catch the second argument if this was called via the $.each
-        if (jQueryItem)
+        if (jQueryItem) {
             styleNode = jQueryItem;
+        }
 
         // check if we received a <style> node
         // if not chcek if it's a jQuery object and go from there
         // if no <style> and no jQuery? return to avoid errors
         if (!styleNode.nodeName) {
 
-            if (!styleNode.jquery)
-                return;
-            else
+            if (!styleNode.jquery) {
+                throw new TypeError('Supplied styleNode is not of type style or a jquery object.', styleNode);
+            } else {
                 return styleNode.each(scopeIt);
-
+            }
         }
 
-        if ('STYLE' !== styleNode.nodeName)
+        if ('STYLE' !== styleNode.nodeName) {
+            throw new TypeError('Supplied styleNode is not of type style', styleNode);
+        } else if (styleNode.hasAttribute(appliedAttributeTag)) {
+            // Scoped styles already applied, silently skipping.
             return;
+        }
 
         // init some vars
-        var parentSheet = styleNode[compat.sheet]
-        , allRules = parentSheet[compat.rules]
-        , par = styleNode.parentNode
-        , id = par.id || (par.id = 'scopedByScopedPolyfill_' + ++idCounter)
-        , glue = ''
-        , index = allRules.length || 0
-        , rule
-        ;
+        parentSheet = styleNode[compat.sheet];
+
+        if (!parentSheet) {
+            // Likely that the style tag has not yet been inserted into DOM.
+            throw new TypeError('Style node has no ' + compat.sheet + ' property, ' +
+                (!par ? 'cause is that supplied style tag is not present in DOM, ' : '') +
+                'cannot continue.');
+        }
+
+        allRules = parentSheet[compat.rules];
+        index = allRules.length || 0;
+
+        if (!par.id) {
+            idCounter += 1;
+            par.id = 'scopedByScopedPolyfill_' + idCounter;
+        }
 
         // get al the ids from the parents so we are as specific as possible
         // if no ids are found we always have the id which is placed on the <style>'s parentNode
@@ -142,6 +161,8 @@ var scopedPolyFill = (function (doc, undefined) {
             processCssRules(rule, index);
 
         }
+
+        styleNode.setAttribute(appliedAttributeTag, true);
 
         //recursively process cssRules
         function processCssRules(parentRule, index) {
